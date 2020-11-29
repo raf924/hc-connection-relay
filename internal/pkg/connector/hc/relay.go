@@ -142,7 +142,7 @@ func (h *hCRelay) Connect(nick string) error {
 				case whisper:
 					wp := whisperServerPacket{}
 					_ = convertTo(response, &wp)
-					text := strings.Split(wp.Text, ":")[1]
+					text := strings.TrimSpace(strings.Split(wp.Text, ":")[1])
 					mp := messages.MessagePacket{
 						Timestamp: timestamppb.New(time.Unix(0, wp.Timestamp*int64(time.Millisecond))),
 						Message:   text,
