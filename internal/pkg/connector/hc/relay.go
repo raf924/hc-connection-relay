@@ -100,6 +100,7 @@ func (h *hCRelay) Connect(nick string) error {
 		return err
 	}
 	for _, user := range response.Users {
+		log.Println("hcUser:", user.Nick)
 		newUser := &messages.User{
 			Nick:  user.Nick,
 			Id:    user.Trip,
@@ -142,7 +143,7 @@ func (h *hCRelay) Connect(nick string) error {
 				case whisper:
 					wp := whisperServerPacket{}
 					_ = convertTo(response, &wp)
-					text := strings.TrimSpace(strings.Split(wp.Text, ":")[1])
+					text := strings.TrimSpace(strings.Join(strings.Split(wp.Text, ":")[1:], ":"))
 					mp := messages.MessagePacket{
 						Timestamp: timestamppb.New(time.Unix(0, wp.Timestamp*int64(time.Millisecond))),
 						Message:   text,
