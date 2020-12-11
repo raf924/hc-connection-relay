@@ -1,4 +1,4 @@
-package hc
+package hc_connection_relay
 
 import (
 	"github.com/raf924/bot/pkg/relay"
