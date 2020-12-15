@@ -136,6 +136,12 @@ func (h *hCRelay) Connect(nick string) error {
 					newUser := &messages.User{
 						Nick: ulp.Nick,
 					}
+					for i, u := range h.users {
+						if u.Nick == ulp.Nick {
+							h.users = append(h.users[:i], h.users[i+1:]...)
+							break
+						}
+					}
 					if h.onUserLeft != nil {
 						h.onUserLeft(newUser, ulp.Timestamp)
 					}
