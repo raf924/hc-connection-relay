@@ -115,64 +115,66 @@ func (h *hCRelay) Connect(nick string) error {
 			if err := h.conn.ReadJSON(&response); err != nil {
 				panic(err)
 			}
-			switch response.GetCommand() {
-			case userJoin:
-				ujp := userJoinPacket{}
-				_ = convertTo(response, &ujp)
-				newUser := &messages.User{
-					Nick:  ujp.Nick,
-					Id:    ujp.Trip,
-					Mod:   ujp.UserType == "mod",
-					Admin: ujp.UserType == "admin",
-				}
-				h.users = append(h.users, newUser)
-				if h.onUserJoin != nil {
-					h.onUserJoin(newUser, ujp.Timestamp)
-				}
-			case userLeft:
-				ulp := userLeftPacket{}
-				_ = convertTo(response, &ulp)
-				newUser := &messages.User{
-					Nick: ulp.Nick,
-				}
-				if h.onUserLeft != nil {
-					h.onUserLeft(newUser, ulp.Timestamp)
-				}
-			case info:
-				ip := infoPacket{}
-				_ = convertTo(response, &ip)
-				switch ip.Type {
-				case whisper:
-					wp := whisperServerPacket{}
-					_ = convertTo(response, &wp)
-					text := strings.TrimSpace(strings.Join(strings.Split(wp.Text, ":")[1:], ":"))
+			go func() {
+				switch response.GetCommand() {
+				case userJoin:
+					ujp := userJoinPacket{}
+					_ = convertTo(response, &ujp)
+					newUser := &messages.User{
+						Nick:  ujp.Nick,
+						Id:    ujp.Trip,
+						Mod:   ujp.UserType == "mod",
+						Admin: ujp.UserType == "admin",
+					}
+					h.users = append(h.users, newUser)
+					if h.onUserJoin != nil {
+						h.onUserJoin(newUser, ujp.Timestamp)
+					}
+				case userLeft:
+					ulp := userLeftPacket{}
+					_ = convertTo(response, &ulp)
+					newUser := &messages.User{
+						Nick: ulp.Nick,
+					}
+					if h.onUserLeft != nil {
+						h.onUserLeft(newUser, ulp.Timestamp)
+					}
+				case info:
+					ip := infoPacket{}
+					_ = convertTo(response, &ip)
+					switch ip.Type {
+					case whisper:
+						wp := whisperServerPacket{}
+						_ = convertTo(response, &wp)
+						text := strings.TrimSpace(strings.Join(strings.Split(wp.Text, ":")[1:], ":"))
+						mp := messages.MessagePacket{
+							Timestamp: timestamppb.New(time.Unix(0, wp.Timestamp*int64(time.Millisecond))),
+							Message:   text,
+							Private:   true,
+							User: &messages.User{
+								Nick: wp.From,
+								Id:   wp.Trip,
+							},
+						}
+						h.serverChannel <- mp
+					}
+				case chat:
+					cp := chatServerPacket{}
+					_ = convertTo(response, &cp)
 					mp := messages.MessagePacket{
-						Timestamp: timestamppb.New(time.Unix(0, wp.Timestamp*int64(time.Millisecond))),
-						Message:   text,
-						Private:   true,
+						Timestamp: timestamppb.New(time.Unix(0, cp.Timestamp*int64(time.Millisecond))),
+						Message:   cp.Text,
 						User: &messages.User{
-							Nick: wp.From,
-							Id:   wp.Trip,
+							Nick:  cp.Nick,
+							Id:    cp.Trip,
+							Mod:   cp.UserType == "mod",
+							Admin: cp.UserType == "admin",
 						},
+						Private: false,
 					}
 					h.serverChannel <- mp
 				}
-			case chat:
-				cp := chatServerPacket{}
-				_ = convertTo(response, &cp)
-				mp := messages.MessagePacket{
-					Timestamp: timestamppb.New(time.Unix(0, cp.Timestamp*int64(time.Millisecond))),
-					Message:   cp.Text,
-					User: &messages.User{
-						Nick:  cp.Nick,
-						Id:    cp.Trip,
-						Mod:   cp.UserType == "mod",
-						Admin: cp.UserType == "admin",
-					},
-					Private: false,
-				}
-				h.serverChannel <- mp
-			}
+			}()
 		}
 	}()
 	return nil
