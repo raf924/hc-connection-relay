@@ -126,16 +126,18 @@ func (h *hCRelay) Connect(nick string) error {
 					Admin: ujp.UserType == "admin",
 				}
 				h.users = append(h.users, newUser)
-				h.onUserJoin(newUser, ujp.Timestamp)
-				break
+				if h.onUserJoin != nil {
+					h.onUserJoin(newUser, ujp.Timestamp)
+				}
 			case userLeft:
 				ulp := userLeftPacket{}
 				_ = convertTo(response, &ulp)
 				newUser := &messages.User{
 					Nick: ulp.Nick,
 				}
-				h.onUserLeft(newUser, ulp.Timestamp)
-				break
+				if h.onUserLeft != nil {
+					h.onUserLeft(newUser, ulp.Timestamp)
+				}
 			case info:
 				ip := infoPacket{}
 				_ = convertTo(response, &ip)
