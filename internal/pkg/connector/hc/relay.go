@@ -7,15 +7,16 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/raf924/bot/pkg/queue"
 	"github.com/raf924/bot/pkg/relay"
 	messages "github.com/raf924/connector-api/pkg/gen"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v2"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -28,20 +29,57 @@ func NewHCRelay(config interface{}) relay.ConnectionRelay {
 	if err := yaml.Unmarshal(data, &conf); err != nil {
 		panic(err)
 	}
-	return &hCRelay{config: conf, serverChannel: make(chan messages.MessagePacket)}
+	return newHCRelay(conf)
+}
+
+func newHCRelay(config hcRelayConfig) *hCRelay {
+	messageQueue := queue.NewQueue()
+	producer, err := messageQueue.NewProducer()
+	if err != nil {
+		panic(err)
+	}
+	consumer, err := messageQueue.NewConsumer()
+	if err != nil {
+		panic(err)
+	}
+	return &hCRelay{
+		config:          config,
+		messageProducer: producer,
+		messageConsumer: consumer,
+		userIndexes:     map[string]int{},
+		userMutex:       &sync.Mutex{},
+	}
 }
 
 type hCRelay struct {
-	config        hcRelayConfig
-	conn          *websocket.Conn
-	nick          string
-	wsUrl         *url.URL
-	retries       int
-	delay         time.Duration
-	serverChannel chan messages.MessagePacket
-	users         []*messages.User
-	onUserJoin    func(user *messages.User, timestamp int64)
-	onUserLeft    func(user *messages.User, timestamp int64)
+	config          hcRelayConfig
+	conn            *websocket.Conn
+	nick            string
+	wsUrl           *url.URL
+	retries         int
+	delay           time.Duration
+	messageProducer *queue.Producer
+	messageConsumer *queue.Consumer
+	users           []*messages.User
+	userIndexes     map[string]int
+	onUserJoin      func(user *messages.User, timestamp int64)
+	onUserLeft      func(user *messages.User, timestamp int64)
+	userMutex       *sync.Mutex
+}
+
+func (h *hCRelay) addUser(user *messages.User) {
+	h.userMutex.Lock()
+	h.users = append(h.users, user)
+	h.userIndexes[user.Nick] = len(h.users) - 1
+	h.userMutex.Unlock()
+}
+
+func (h *hCRelay) removeUser(user *messages.User) {
+	h.userMutex.Lock()
+	index := h.userIndexes[user.Nick]
+	h.users = append(h.users[:index], h.users[index+1:]...)
+	delete(h.userIndexes, user.Nick)
+	h.userMutex.Unlock()
 }
 
 func convertTo(jsonData map[string]interface{}, obj interface{}) error {
@@ -54,20 +92,19 @@ func convertTo(jsonData map[string]interface{}, obj interface{}) error {
 
 func (h *hCRelay) OnUserJoin(f func(user *messages.User, timestamp int64)) {
 	h.onUserJoin = func(user *messages.User, timestamp int64) {
-		log.Printf("%s joined\n", user.Nick)
+		//log.Printf("%s joined\n", user.Nick)
 		f(user, timestamp)
 	}
 }
 
 func (h *hCRelay) OnUserLeft(f func(user *messages.User, timestamp int64)) {
 	h.onUserLeft = func(user *messages.User, timestamp int64) {
-		log.Printf("%s left\n", user.Nick)
+		//log.Printf("%s left\n", user.Nick)
 		f(user, timestamp)
 	}
 }
 
 func (h *hCRelay) GetUsers() []*messages.User {
-	//TODO: map ?
 	return h.users
 }
 
@@ -101,13 +138,12 @@ func (h *hCRelay) Connect(nick string) error {
 	}
 	for _, user := range response.Users {
 		log.Println("hcUser:", user.Nick)
-		newUser := &messages.User{
+		h.addUser(&messages.User{
 			Nick:  user.Nick,
 			Id:    user.Trip,
 			Mod:   user.UserType == "mod",
 			Admin: user.UserType == "admin",
-		}
-		h.users = append(h.users, newUser)
+		})
 	}
 	go func() {
 		for true {
@@ -126,24 +162,19 @@ func (h *hCRelay) Connect(nick string) error {
 						Mod:   ujp.UserType == "mod",
 						Admin: ujp.UserType == "admin",
 					}
-					h.users = append(h.users, newUser)
+					h.addUser(newUser)
 					if h.onUserJoin != nil {
 						h.onUserJoin(newUser, ujp.Timestamp)
 					}
 				case userLeft:
 					ulp := userLeftPacket{}
 					_ = convertTo(response, &ulp)
-					newUser := &messages.User{
+					quitter := &messages.User{
 						Nick: ulp.Nick,
 					}
-					for i, u := range h.users {
-						if u.Nick == ulp.Nick {
-							h.users = append(h.users[:i], h.users[i+1:]...)
-							break
-						}
-					}
+					h.removeUser(quitter)
 					if h.onUserLeft != nil {
-						h.onUserLeft(newUser, ulp.Timestamp)
+						h.onUserLeft(quitter, ulp.Timestamp)
 					}
 				case info:
 					ip := infoPacket{}
@@ -153,23 +184,25 @@ func (h *hCRelay) Connect(nick string) error {
 						wp := whisperServerPacket{}
 						_ = convertTo(response, &wp)
 						text := strings.TrimSpace(strings.Join(strings.Split(wp.Text, ":")[1:], ":"))
+						i := h.userIndexes[wp.From]
+						user := h.users[i]
 						mp := messages.MessagePacket{
 							Timestamp: timestamppb.New(time.Unix(0, wp.Timestamp*int64(time.Millisecond))),
 							Message:   text,
 							Private:   true,
-							User: &messages.User{
-								Nick: wp.From,
-								Id:   wp.Trip,
-							},
+							User:      user,
 						}
-						h.serverChannel <- mp
+						err := h.messageProducer.Produce(&mp)
+						if err != nil {
+							log.Println("error:", err)
+						}
 					}
 				case chat:
 					cp := chatServerPacket{}
 					_ = convertTo(response, &cp)
 					mp := messages.MessagePacket{
 						Timestamp: timestamppb.New(time.Unix(0, cp.Timestamp*int64(time.Millisecond))),
-						Message:   cp.Text,
+						Message:   strings.TrimSpace(cp.Text),
 						User: &messages.User{
 							Nick:  cp.Nick,
 							Id:    cp.Trip,
@@ -178,7 +211,10 @@ func (h *hCRelay) Connect(nick string) error {
 						},
 						Private: false,
 					}
-					h.serverChannel <- mp
+					err := h.messageProducer.Produce(&mp)
+					if err != nil {
+						log.Println("error:", err)
+					}
 				}
 			}()
 		}
@@ -314,10 +350,5 @@ func (h *hCRelay) Recv() (*messages.MessagePacket, error) {
 }
 
 func (h *hCRelay) RecvMsg(packet *messages.MessagePacket) error {
-	var ok bool
-	*packet, ok = <-h.serverChannel
-	if !ok {
-		return io.EOF
-	}
-	return nil
+	return h.messageConsumer.Consume(packet)
 }
