@@ -1,6 +1,6 @@
 package hc
 
-type hcRelayConfig struct {
+type HCRelayConfig struct {
 	Trigger string `yaml:"trigger"`
 	Secure  bool   `yaml:"secure"`
 	Url     string `yaml:"url"`

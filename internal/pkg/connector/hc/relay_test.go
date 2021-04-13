@@ -2,14 +2,15 @@ package hc
 
 import (
 	"github.com/google/uuid"
-	"github.com/raf924/bot/pkg/relay"
+	"github.com/raf924/bot/pkg/queue"
+	"github.com/raf924/bot/pkg/relay/connection"
 	"github.com/raf924/connector-api/pkg/gen"
 	"os"
 	"testing"
 )
 
-func setupHCRelay(tb testing.TB) *hCRelay {
-	hcRelay := newHCRelay(hcRelayConfig{
+func setupHCRelay(tb testing.TB, ex *queue.Exchange) *hCRelay {
+	hcRelay := newHCRelay(HCRelayConfig{
 		Trigger: "",
 		Secure:  true,
 		Url:     "wss://hack.chat/chat-ws",
@@ -20,7 +21,7 @@ func setupHCRelay(tb testing.TB) *hCRelay {
 			Delay      string `yaml:"delay"`
 		}{},
 		Password: os.ExpandEnv("${HC_PASSWORD}"),
-	})
+	}, ex)
 	err := hcRelay.Connect("bot")
 	if err != nil {
 		tb.Errorf("unexpected error: %v", err)
@@ -28,8 +29,8 @@ func setupHCRelay(tb testing.TB) *hCRelay {
 	return hcRelay
 }
 
-func roundTrip(hcRelay *hCRelay, text string, tb testing.TB) *gen.MessagePacket {
-	err := hcRelay.Send(relay.ChatMessage{
+func roundTrip(tb testing.TB, ex *queue.Exchange, text string) *gen.MessagePacket {
+	err := ex.Produce(connection.ChatMessage{
 		Message:   text,
 		Recipient: "",
 		Private:   false,
@@ -37,26 +38,33 @@ func roundTrip(hcRelay *hCRelay, text string, tb testing.TB) *gen.MessagePacket 
 	if err != nil {
 		tb.Errorf("unexpected error: %v", err)
 	}
-	m := &gen.MessagePacket{}
-	err = hcRelay.RecvMsg(m)
+	m, err := ex.Consume()
 	if err != nil {
 		tb.Errorf("unexpected error: %v", err)
 	}
-	return m
+	return m.(*gen.MessagePacket)
 }
 
 func TestHCRelayRoundTrip(t *testing.T) {
-	hcRelay := setupHCRelay(t)
+	var cn2CrQ = queue.NewQueue()
+	var cr2CnQ = queue.NewQueue()
+	var cnEx, _ = queue.NewExchange(cr2CnQ, cn2CrQ)
+	var crEx, _ = queue.NewExchange(cn2CrQ, cr2CnQ)
+	_ = setupHCRelay(t, crEx)
 	text := uuid.NewString()
-	m := roundTrip(hcRelay, text, t)
+	m := roundTrip(t, cnEx, text)
 	if m.Message != text {
 		t.Errorf("expected %v got %v", text, m.Message)
 	}
 }
 
 func BenchmarkRoundTrip(b *testing.B) {
-	hcRelay := setupHCRelay(b)
+	var cn2CrQ = queue.NewQueue()
+	var cr2CnQ = queue.NewQueue()
+	var cnEx, _ = queue.NewExchange(cr2CnQ, cn2CrQ)
+	var crEx, _ = queue.NewExchange(cn2CrQ, cr2CnQ)
+	_ = setupHCRelay(b, crEx)
 	for i := 0; i < b.N; i++ {
-		_ = roundTrip(hcRelay, "test", b)
+		_ = roundTrip(b, cnEx, "test")
 	}
 }
