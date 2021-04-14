@@ -36,8 +36,13 @@ func newHCRelay(config HCRelayConfig, exchange *queue.Exchange) *hCRelay {
 	return &hCRelay{
 		config:            config,
 		connectorExchange: exchange,
-		serverQueue:       queue.NewQueue(),
 		users:             users.NewUserList(),
+		onUserJoin: func(user *messages.User, timestamp int64) {
+
+		},
+		onUserLeft: func(user *messages.User, timestamp int64) {
+
+		},
 	}
 }
 
@@ -52,7 +57,21 @@ type hCRelay struct {
 	onUserJoin        func(user *messages.User, timestamp int64)
 	onUserLeft        func(user *messages.User, timestamp int64)
 	connectorExchange *queue.Exchange
-	serverQueue       queue.Queue
+	serverProducer    *queue.Producer
+	serverConsumer    *queue.Consumer
+}
+
+func (h *hCRelay) Recv() (*messages.MessagePacket, error) {
+	v, err := h.serverConsumer.Consume()
+	return v.(*messages.MessagePacket), err
+}
+
+func (h *hCRelay) Send(message connection.Message) error {
+	return h.sendToServer(message)
+}
+
+func (h *hCRelay) GetUsers() *users.UserList {
+	return h.users.Copy()
 }
 
 func (h *hCRelay) addUser(user *messages.User) {
@@ -85,37 +104,11 @@ func (h *hCRelay) OnUserLeft(f func(user *messages.User, timestamp int64)) {
 	}
 }
 
-func (h *hCRelay) GetUsers() []*messages.User {
-	return h.users.All()
-}
-
 func (h *hCRelay) CommandTrigger() string {
 	return h.config.Trigger
 }
 
 const defaultDelay = 5 * time.Second
-
-func (h *hCRelay) relayConnectorMessage() error {
-	var rm connection.Message
-	rm, err := h.receiveFromConnector()
-	if err != nil {
-		return err
-	}
-	err = h.sendToServer(rm)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (h *hCRelay) relayConnectorMessages() error {
-	for {
-		err := h.relayConnectorMessage()
-		if err != nil {
-			return err
-		}
-	}
-}
 
 func (h *hCRelay) connect(nick string) error {
 	h.nick = nick
@@ -258,31 +251,41 @@ func (h *hCRelay) Connect(nick string) error {
 	if err != nil {
 		return err
 	}
-	producer, err := h.serverQueue.NewProducer()
+	serverQueue := queue.NewQueue()
+	h.serverProducer, err = serverQueue.NewProducer()
 	if err != nil {
 		return err
 	}
-	consumer, err := h.serverQueue.NewConsumer()
+	h.serverConsumer, err = serverQueue.NewConsumer()
+	if err != nil {
+		return err
+	}
+	internalQueue := queue.NewQueue()
+	internalProducer, err := internalQueue.NewProducer()
+	if err != nil {
+		return err
+	}
+	internalConsumer, err := internalQueue.NewConsumer()
 	if err != nil {
 		return err
 	}
 	go func() {
-		err := h.relayConnectorMessages()
-		panic(err)
+		err := h.readServerMessages(internalProducer)
+		if err != nil {
+			panic(err)
+		}
 	}()
 	go func() {
-		err := h.readServerMessages(producer)
-		panic(err)
-	}()
-	go func() {
-		err := h.relayServerMessages(consumer)
-		panic(err)
+		err := h.relayServerMessages(internalConsumer)
+		if err != nil {
+			panic(err)
+		}
 	}()
 	return nil
 }
 
 func (h *hCRelay) sendToConnector(m *messages.MessagePacket) error {
-	return h.connectorExchange.Produce(m)
+	return h.serverProducer.Produce(m)
 }
 
 func (h *hCRelay) canRetry() bool {
@@ -405,12 +408,4 @@ func (h *hCRelay) sendToServer(message connection.Message) error {
 		return nil
 	}
 	return h.conn.WriteJSON(packet)
-}
-
-func (h *hCRelay) receiveFromConnector() (connection.Message, error) {
-	m, err := h.connectorExchange.Consume()
-	if err != nil {
-		return nil, fmt.Errorf("error receiving message from connector: %v", err)
-	}
-	return m.(connection.Message), nil
 }

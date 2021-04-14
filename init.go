@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	connection.RegisterConnectionRelay("hc", func(config interface{}, connectorExchange *queue.Exchange) connection.ConnectionRelay {
+	connection.RegisterConnectionRelay("hc", func(config interface{}, connectorExchange *queue.Exchange) connection.Relay {
 		return hc.NewHCRelay(config, connectorExchange)
 	})
 }
