@@ -49,6 +49,7 @@ github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4 h1:gQz4mCb
 github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
 github.com/raf924/bot v1.0.0-alpha.15 h1:QPy85bTC9DZQprHO7pUJr8rpd/1sWcuIX5nRBQw846E=
 github.com/raf924/bot v1.0.0-alpha.15/go.mod h1:ojGwA++cXdbqvfL+aSbAz/tJ0sKrZ9yTI0x2zEAbESw=
+github.com/raf924/bot v1.0.0-alpha.21/go.mod h1:AlDyNEa1R87KQGBuH7ZwWZv2/qIMPGIh72iIjmOn3hM=
 github.com/raf924/connector-api v1.0.0-alpha.3 h1:dQEjZBuULeTb5T+Sxw4ksVkUWLRAZVlSQMnC3207+78=
 github.com/raf924/connector-api v1.0.0-alpha.3/go.mod h1:RVRXrhb9CRqdLJ6XOzmqGRrJGznEC92PVw6iB4lFcfQ=
 github.com/stretchr/objx v0.1.0 h1:4G4v2dO3VZwixGIRoQ5Lfboy6nUhCyYzaqnIAPPhYs4=
