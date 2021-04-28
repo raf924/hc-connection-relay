@@ -39,6 +39,7 @@ github.com/raf924/bot v1.0.0-alpha.22 h1:/3QU3Ze8R1qhfPNfF44JQ9yb+FqiTR6hLHsuO5J
 github.com/raf924/bot v1.0.0-alpha.22/go.mod h1:AlDyNEa1R87KQGBuH7ZwWZv2/qIMPGIh72iIjmOn3hM=
 github.com/raf924/connector-api v1.0.0-alpha.3 h1:dQEjZBuULeTb5T+Sxw4ksVkUWLRAZVlSQMnC3207+78=
 github.com/raf924/connector-api v1.0.0-alpha.3/go.mod h1:RVRXrhb9CRqdLJ6XOzmqGRrJGznEC92PVw6iB4lFcfQ=
+github.com/raf924/connector-api v1.0.0-alpha.6/go.mod h1:RVRXrhb9CRqdLJ6XOzmqGRrJGznEC92PVw6iB4lFcfQ=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
