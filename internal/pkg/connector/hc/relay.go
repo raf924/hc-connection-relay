@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-func NewHCRelay(config interface{}, exchange *queue.Exchange) *hCRelay {
+func NewHCRelay(config interface{}) *hCRelay {
 	data, err := yaml.Marshal(config)
 	if err != nil {
 		panic(err)
@@ -29,14 +29,13 @@ func NewHCRelay(config interface{}, exchange *queue.Exchange) *hCRelay {
 	if err := yaml.Unmarshal(data, &conf); err != nil {
 		panic(err)
 	}
-	return newHCRelay(conf, exchange)
+	return newHCRelay(conf)
 }
 
-func newHCRelay(config HCRelayConfig, exchange *queue.Exchange) *hCRelay {
+func newHCRelay(config HCRelayConfig) *hCRelay {
 	return &hCRelay{
-		config:            config,
-		connectorExchange: exchange,
-		users:             users.NewUserList(),
+		config: config,
+		users:  users.NewUserList(),
 		onUserJoin: func(user *messages.User, timestamp int64) {
 
 		},
@@ -47,18 +46,17 @@ func newHCRelay(config HCRelayConfig, exchange *queue.Exchange) *hCRelay {
 }
 
 type hCRelay struct {
-	config            HCRelayConfig
-	conn              *websocket.Conn
-	nick              string
-	wsUrl             *url.URL
-	retries           int
-	delay             time.Duration
-	users             *users.UserList
-	onUserJoin        func(user *messages.User, timestamp int64)
-	onUserLeft        func(user *messages.User, timestamp int64)
-	connectorExchange *queue.Exchange
-	serverProducer    *queue.Producer
-	serverConsumer    *queue.Consumer
+	config         HCRelayConfig
+	conn           *websocket.Conn
+	nick           string
+	wsUrl          *url.URL
+	retries        int
+	delay          time.Duration
+	users          *users.UserList
+	onUserJoin     func(user *messages.User, timestamp int64)
+	onUserLeft     func(user *messages.User, timestamp int64)
+	serverProducer *queue.Producer
+	serverConsumer *queue.Consumer
 }
 
 func (h *hCRelay) Recv() (*messages.MessagePacket, error) {

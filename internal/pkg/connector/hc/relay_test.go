@@ -2,14 +2,13 @@ package hc
 
 import (
 	"github.com/google/uuid"
-	"github.com/raf924/bot/pkg/queue"
 	"github.com/raf924/bot/pkg/relay/connection"
 	"github.com/raf924/connector-api/pkg/gen"
 	"os"
 	"testing"
 )
 
-func setupHCRelay(tb testing.TB, ex *queue.Exchange) *hCRelay {
+func setupHCRelay(tb testing.TB) *hCRelay {
 	hcRelay := newHCRelay(HCRelayConfig{
 		Trigger: "",
 		Secure:  true,
@@ -21,7 +20,7 @@ func setupHCRelay(tb testing.TB, ex *queue.Exchange) *hCRelay {
 			Delay      string `yaml:"delay"`
 		}{},
 		Password: os.ExpandEnv("${HC_PASSWORD}"),
-	}, ex)
+	})
 	err := hcRelay.Connect("bot")
 	if err != nil {
 		tb.Errorf("unexpected error: %v", err)
@@ -29,8 +28,8 @@ func setupHCRelay(tb testing.TB, ex *queue.Exchange) *hCRelay {
 	return hcRelay
 }
 
-func roundTrip(tb testing.TB, ex *queue.Exchange, text string) *gen.MessagePacket {
-	err := ex.Produce(connection.ChatMessage{
+func roundTrip(tb testing.TB, hcR *hCRelay, text string) *gen.MessagePacket {
+	err := hcR.Send(connection.ChatMessage{
 		Message:   text,
 		Recipient: "",
 		Private:   false,
@@ -38,33 +37,25 @@ func roundTrip(tb testing.TB, ex *queue.Exchange, text string) *gen.MessagePacke
 	if err != nil {
 		tb.Errorf("unexpected error: %v", err)
 	}
-	m, err := ex.Consume()
+	m, err := hcR.Recv()
 	if err != nil {
 		tb.Errorf("unexpected error: %v", err)
 	}
-	return m.(*gen.MessagePacket)
+	return m
 }
 
 func TestHCRelayRoundTrip(t *testing.T) {
-	var cn2CrQ = queue.NewQueue()
-	var cr2CnQ = queue.NewQueue()
-	var cnEx, _ = queue.NewExchange(cr2CnQ, cn2CrQ)
-	var crEx, _ = queue.NewExchange(cn2CrQ, cr2CnQ)
-	_ = setupHCRelay(t, crEx)
+	hcR := setupHCRelay(t)
 	text := uuid.NewString()
-	m := roundTrip(t, cnEx, text)
+	m := roundTrip(t, hcR, text)
 	if m.Message != text {
 		t.Errorf("expected %v got %v", text, m.Message)
 	}
 }
 
 func BenchmarkRoundTrip(b *testing.B) {
-	var cn2CrQ = queue.NewQueue()
-	var cr2CnQ = queue.NewQueue()
-	var cnEx, _ = queue.NewExchange(cr2CnQ, cn2CrQ)
-	var crEx, _ = queue.NewExchange(cn2CrQ, cr2CnQ)
-	_ = setupHCRelay(b, crEx)
+	hcR := setupHCRelay(b)
 	for i := 0; i < b.N; i++ {
-		_ = roundTrip(b, cnEx, "test")
+		_ = roundTrip(b, hcR, "test")
 	}
 }
