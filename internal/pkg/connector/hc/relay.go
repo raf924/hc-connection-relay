@@ -13,6 +13,7 @@ import (
 	messages "github.com/raf924/connector-api/pkg/gen"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v2"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -145,7 +146,10 @@ func (h *hCRelay) connect(nick string) error {
 func (h *hCRelay) readServerMessage(producer *queue.Producer) error {
 	var response mapPacket
 	if err := h.conn.ReadJSON(&response); err != nil {
-		return err
+		if errors.Is(err, io.ErrUnexpectedEOF) {
+			return err
+		}
+		return nil
 	}
 	return producer.Produce(response)
 }
