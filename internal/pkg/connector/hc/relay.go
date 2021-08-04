@@ -13,7 +13,6 @@ import (
 	messages "github.com/raf924/connector-api/pkg/gen"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v2"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -146,10 +145,7 @@ func (h *hCRelay) connect(nick string) error {
 func (h *hCRelay) readServerMessage(producer *queue.Producer) error {
 	var response mapPacket
 	if err := h.conn.ReadJSON(&response); err != nil {
-		if errors.Is(err, io.ErrUnexpectedEOF) {
-			return err
-		}
-		return nil
+		return err
 	}
 	return producer.Produce(response)
 }
@@ -249,10 +245,7 @@ func (h *hCRelay) relayServerMessages(consumer *queue.Consumer) error {
 }
 
 func (h *hCRelay) Connect(nick string) error {
-	err := h.connect(nick)
-	if err != nil {
-		return err
-	}
+	var err error
 	serverQueue := queue.NewQueue()
 	h.serverProducer, err = serverQueue.NewProducer()
 	if err != nil {
@@ -272,9 +265,19 @@ func (h *hCRelay) Connect(nick string) error {
 		return err
 	}
 	go func() {
-		err := h.readServerMessages(internalProducer)
-		if err != nil {
-			panic(err)
+		for {
+			err := h.connect(nick)
+			if err != nil {
+				panic(err)
+			}
+			err = h.readServerMessages(internalProducer)
+			if err != nil {
+				log.Println(err)
+				err = h.conn.Close()
+				if err != nil {
+					panic(err)
+				}
+			}
 		}
 	}()
 	go func() {
