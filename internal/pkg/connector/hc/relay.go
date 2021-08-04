@@ -264,11 +264,17 @@ func (h *hCRelay) Connect(nick string) error {
 	if err != nil {
 		return err
 	}
+	var connected bool
+	var connectionChan = make(chan bool, 1)
 	go func() {
 		for {
 			err := h.connect(nick)
 			if err != nil {
 				panic(err)
+			}
+			if !connected {
+				connected = true
+				connectionChan <- connected
 			}
 			err = h.readServerMessages(internalProducer)
 			if err != nil {
@@ -286,6 +292,7 @@ func (h *hCRelay) Connect(nick string) error {
 			panic(err)
 		}
 	}()
+	<-connectionChan
 	return nil
 }
 
