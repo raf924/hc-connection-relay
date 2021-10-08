@@ -1,5 +1,10 @@
 package hc
 
+import (
+	"github.com/raf924/bot/pkg/domain"
+	"time"
+)
+
 type serverCommand string
 
 const (
@@ -105,9 +110,14 @@ type warnPacket struct {
 }
 
 type serverUser struct {
-	Nick    string `json:"nick"`
-	UserId  int64  `json:"userid"`
-	Channel string `json:"channel"`
+	Nick          string `json:"nick"`
+	UserId        int64  `json:"userid"`
+	Channel       string `json:"channel"`
+	IsCurrentUser bool   `json:"isme"`
+}
+
+func (u *serverUser) toUser() *domain.User {
+	return domain.NewUser(u.Nick, "", domain.RegularUser)
 }
 
 type user struct {
@@ -115,6 +125,32 @@ type user struct {
 	Trip     string `json:"trip"`
 	UserType string `json:"uType"`
 	Hash     string `json:"hash"`
+}
+
+func (u *user) toUser() *domain.User {
+	var role domain.UserRole
+	switch u.UserType {
+	case "admin":
+		role = domain.Admin
+	case "mod":
+		role = domain.Moderator
+	default:
+		role = domain.RegularUser
+	}
+	return domain.NewUser(u.Nick, u.Trip, role)
+}
+
+func (u *user) toOnlineUser(joinTime time.Time) *domain.User {
+	var role domain.UserRole
+	switch u.UserType {
+	case "admin":
+		role = domain.Admin
+	case "mod":
+		role = domain.Moderator
+	default:
+		role = domain.RegularUser
+	}
+	return domain.NewOnlineUser(u.Nick, u.Trip, role, &joinTime)
 }
 
 type joinedPacket struct {

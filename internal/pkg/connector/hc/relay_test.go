@@ -2,8 +2,7 @@ package hc
 
 import (
 	"github.com/google/uuid"
-	"github.com/raf924/bot/pkg/relay/connection"
-	"github.com/raf924/connector-api/pkg/gen"
+	"github.com/raf924/bot/pkg/domain"
 	"os"
 	"testing"
 )
@@ -21,19 +20,15 @@ func setupHCRelay(tb testing.TB) *hCRelay {
 		}{},
 		Password: os.ExpandEnv("${HC_PASSWORD}"),
 	})
-	err := hcRelay.Connect("bot")
+	_, _, err := hcRelay.Connect("bot")
 	if err != nil {
 		tb.Errorf("unexpected error: %v", err)
 	}
 	return hcRelay
 }
 
-func roundTrip(tb testing.TB, hcR *hCRelay, text string) *gen.MessagePacket {
-	err := hcR.Send(connection.ChatMessage{
-		Message:   text,
-		Recipient: "",
-		Private:   false,
-	})
+func roundTrip(tb testing.TB, hcR *hCRelay, text string) *domain.ChatMessage {
+	err := hcR.Send(domain.NewClientMessage(text, nil, false))
 	if err != nil {
 		tb.Errorf("unexpected error: %v", err)
 	}
@@ -48,8 +43,8 @@ func TestHCRelayRoundTrip(t *testing.T) {
 	hcR := setupHCRelay(t)
 	text := uuid.NewString()
 	m := roundTrip(t, hcR, text)
-	if m.Message != text {
-		t.Errorf("expected %v got %v", text, m.Message)
+	if m.Message() != text {
+		t.Errorf("expected %v got %v", text, m.Message())
 	}
 }
 
