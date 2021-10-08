@@ -7,18 +7,21 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/raf924/bot/pkg/domain"
 	"github.com/raf924/bot/pkg/queue"
 	"github.com/raf924/bot/pkg/relay/connection"
-	"github.com/raf924/bot/pkg/users"
-	messages "github.com/raf924/connector-api/pkg/gen"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v2"
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
+
+var _ connection.Relay = (*hCRelay)(nil)
+
+var mentionRegex = regexp.MustCompile("@+(\\w+)")
 
 func NewHCRelay(config interface{}) *hCRelay {
 	data, err := yaml.Marshal(config)
@@ -35,11 +38,11 @@ func NewHCRelay(config interface{}) *hCRelay {
 func newHCRelay(config HCRelayConfig) *hCRelay {
 	return &hCRelay{
 		config: config,
-		users:  users.NewUserList(),
-		onUserJoin: func(user *messages.User, timestamp int64) {
+		users:  domain.NewUserList(),
+		onUserJoin: func(user *domain.User, timestamp time.Time) {
 
 		},
-		onUserLeft: func(user *messages.User, timestamp int64) {
+		onUserLeft: func(user *domain.User, timestamp time.Time) {
 
 		},
 	}
@@ -52,31 +55,28 @@ type hCRelay struct {
 	wsUrl          *url.URL
 	retries        int
 	delay          time.Duration
-	users          *users.UserList
-	onUserJoin     func(user *messages.User, timestamp int64)
-	onUserLeft     func(user *messages.User, timestamp int64)
+	currentUser    *domain.User
+	users          domain.UserList
+	onUserJoin     func(user *domain.User, timestamp time.Time)
+	onUserLeft     func(user *domain.User, timestamp time.Time)
 	serverProducer *queue.Producer
 	serverConsumer *queue.Consumer
 }
 
-func (h *hCRelay) Recv() (*messages.MessagePacket, error) {
+func (h *hCRelay) Recv() (*domain.ChatMessage, error) {
 	v, err := h.serverConsumer.Consume()
-	return v.(*messages.MessagePacket), err
+	return v.(*domain.ChatMessage), err
 }
 
-func (h *hCRelay) Send(message connection.Message) error {
+func (h *hCRelay) Send(message *domain.ClientMessage) error {
 	return h.sendToServer(message)
 }
 
-func (h *hCRelay) GetUsers() *users.UserList {
-	return h.users.Copy()
-}
-
-func (h *hCRelay) addUser(user *messages.User) {
+func (h *hCRelay) addUser(user *domain.User) {
 	h.users.Add(user)
 }
 
-func (h *hCRelay) removeUser(user *messages.User) {
+func (h *hCRelay) removeUser(user *domain.User) {
 	h.users.Remove(user)
 }
 
@@ -88,15 +88,15 @@ func convertTo(jsonData map[string]interface{}, obj interface{}) error {
 	return json.Unmarshal(data, obj)
 }
 
-func (h *hCRelay) OnUserJoin(f func(user *messages.User, timestamp int64)) {
-	h.onUserJoin = func(user *messages.User, timestamp int64) {
+func (h *hCRelay) OnUserJoin(f func(user *domain.User, timestamp time.Time)) {
+	h.onUserJoin = func(user *domain.User, timestamp time.Time) {
 		//log.Printf("%s joined\n", user.Nick)
 		f(user, timestamp)
 	}
 }
 
-func (h *hCRelay) OnUserLeft(f func(user *messages.User, timestamp int64)) {
-	h.onUserLeft = func(user *messages.User, timestamp int64) {
+func (h *hCRelay) OnUserLeft(f func(user *domain.User, timestamp time.Time)) {
+	h.onUserLeft = func(user *domain.User, timestamp time.Time) {
 		//log.Printf("%s left\n", user.Nick)
 		f(user, timestamp)
 	}
@@ -130,14 +130,13 @@ func (h *hCRelay) connect(nick string) error {
 	if err != nil {
 		return err
 	}
-	for _, user := range response.Users {
-		log.Println("hcUser:", user.Nick)
-		h.addUser(&messages.User{
-			Nick:  user.Nick,
-			Id:    user.Trip,
-			Mod:   user.UserType == "mod",
-			Admin: user.UserType == "admin",
-		})
+	for _, hcUser := range response.Users {
+		log.Println("hcUser:", hcUser.Nick)
+		onlineUser := hcUser.toOnlineUser(time.Now())
+		h.addUser(onlineUser)
+		if hcUser.IsCurrentUser {
+			h.currentUser = onlineUser
+		}
 	}
 	return nil
 }
@@ -170,25 +169,18 @@ func (h *hCRelay) relayServerMessage(consumer *queue.Consumer) error {
 	case userJoin:
 		ujp := userJoinPacket{}
 		_ = convertTo(response, &ujp)
-		newUser := &messages.User{
-			Nick:  ujp.Nick,
-			Id:    ujp.Trip,
-			Mod:   ujp.UserType == "mod",
-			Admin: ujp.UserType == "admin",
-		}
+		newUser := ujp.toOnlineUser(time.Now())
 		h.addUser(newUser)
 		if h.onUserJoin != nil {
-			h.onUserJoin(newUser, ujp.Timestamp)
+			h.onUserJoin(newUser, time.UnixMilli(ujp.Timestamp))
 		}
 	case userLeft:
 		ulp := userLeftPacket{}
 		_ = convertTo(response, &ulp)
-		quitter := &messages.User{
-			Nick: ulp.Nick,
-		}
+		quitter := ulp.toUser()
 		h.removeUser(quitter)
 		if h.onUserLeft != nil {
-			h.onUserLeft(quitter, ulp.Timestamp)
+			h.onUserLeft(quitter, time.UnixMilli(ulp.Timestamp))
 		}
 	case info:
 		ip := infoPacket{}
@@ -202,13 +194,8 @@ func (h *hCRelay) relayServerMessage(consumer *queue.Consumer) error {
 			if user == nil {
 				break
 			}
-			mp := messages.MessagePacket{
-				Timestamp: timestamppb.New(time.Unix(0, wp.Timestamp*int64(time.Millisecond))),
-				Message:   text,
-				Private:   true,
-				User:      user,
-			}
-			err := h.sendToConnector(&mp)
+			mp := domain.NewChatMessage(text, user, nil, false, true, time.UnixMilli(wp.Timestamp), !user.Is(h.currentUser))
+			err := h.sendToConnector(mp)
 			if err != nil {
 				return err
 			}
@@ -216,18 +203,22 @@ func (h *hCRelay) relayServerMessage(consumer *queue.Consumer) error {
 	case chat:
 		cp := chatServerPacket{}
 		_ = convertTo(response, &cp)
-		mp := messages.MessagePacket{
-			Timestamp: timestamppb.New(time.Unix(0, cp.Timestamp*int64(time.Millisecond))),
-			Message:   strings.TrimSpace(cp.Text),
-			User: &messages.User{
-				Nick:  cp.Nick,
-				Id:    cp.Trip,
-				Mod:   cp.UserType == "mod",
-				Admin: cp.UserType == "admin",
-			},
-			Private: false,
+		user := h.users.Find(cp.Nick)
+		matches := mentionRegex.FindAllStringSubmatch(cp.Text, -1)
+		var recipients []*domain.User
+		var mentionsConnectorUser bool
+		for _, match := range matches {
+			nick := match[1]
+			if nick == h.nick {
+				mentionsConnectorUser = true
+			}
+			recipient := h.users.Find(nick)
+			if recipient != nil {
+				recipients = append(recipients, recipient)
+			}
 		}
-		err := h.sendToConnector(&mp)
+		mp := domain.NewChatMessage(strings.TrimSpace(cp.Text), user, recipients, mentionsConnectorUser, false, time.UnixMilli(cp.Timestamp), !user.Is(h.currentUser))
+		err := h.sendToConnector(mp)
 		if err != nil {
 			return err
 		}
@@ -244,25 +235,25 @@ func (h *hCRelay) relayServerMessages(consumer *queue.Consumer) error {
 	}
 }
 
-func (h *hCRelay) Connect(nick string) error {
+func (h *hCRelay) Connect(nick string) (*domain.User, domain.UserList, error) {
 	var err error
 	serverQueue := queue.NewQueue()
 	h.serverProducer, err = serverQueue.NewProducer()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	h.serverConsumer, err = serverQueue.NewConsumer()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	internalQueue := queue.NewQueue()
 	internalProducer, err := internalQueue.NewProducer()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	internalConsumer, err := internalQueue.NewConsumer()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	var connected bool
 	var connectionChan = make(chan bool, 1)
@@ -293,10 +284,19 @@ func (h *hCRelay) Connect(nick string) error {
 		}
 	}()
 	<-connectionChan
-	return nil
+	go func() {
+		timer := time.NewTimer(50 * time.Second)
+		for ok := true; ok; _, ok = <-timer.C {
+			err := h.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(30*time.Second))
+			if err != nil {
+				log.Println("ping error", err)
+			}
+		}
+	}()
+	return h.currentUser, domain.ImmutableUserList(h.users), nil
 }
 
-func (h *hCRelay) sendToConnector(m *messages.MessagePacket) error {
+func (h *hCRelay) sendToConnector(m *domain.ChatMessage) error {
 	return h.serverProducer.Produce(m)
 }
 
@@ -335,7 +335,7 @@ func (h *hCRelay) connectTry() error {
 
 func (h *hCRelay) joinTry() error {
 	err := h.conn.WriteJSON(joinCommand{
-		Command: "join",
+		Command: string(clientJoin),
 		Channel: h.config.Channel,
 		Nick:    fmt.Sprintf("%s#%s", h.nick, h.config.Password),
 	})
@@ -370,54 +370,25 @@ func (h *hCRelay) waitForJoinConfirmation() (*joinedPacket, error) {
 	return nil, errors.New("exceeded allowed number of retries")
 }
 
-func (h *hCRelay) sendToServer(message connection.Message) error {
+func (h *hCRelay) sendToServer(message *domain.ClientMessage) error {
 	var packet interface{}
-	switch message.(type) {
-	case connection.ChatMessage:
-		message := message.(connection.ChatMessage)
-		var text = ""
-		if message.Private {
-			if message.Recipient == "" {
-				log.Println("can't send private message to no one")
-				return nil
-			}
-			text = fmt.Sprintf("%swhisper ", h.config.Trigger)
-		}
-		if message.Recipient != "" {
-			text += fmt.Sprintf("@%s", message.Recipient)
-		}
-		packet = struct {
-			chatPacket
-			Command clientCommand `json:"cmd"`
-		}{
-			chatPacket: chatPacket{Text: fmt.Sprintf("%s %s", text, message.Message)},
-			Command:    clientChat,
-		}
-	case connection.NoticeMessage:
-		message := message.(connection.NoticeMessage)
-		packet = struct {
-			emotePacket
-			Command clientCommand `json:"cmd"`
-		}{
-			Command:     clientChat,
-			emotePacket: emotePacket{chatPacket{Text: fmt.Sprintf("%sme %s", h.config.Trigger, message.Message)}},
-		}
-		break
-	case connection.InviteMessage:
-		message := message.(connection.InviteMessage)
-		if message.Recipient == "" {
-			log.Println("can't invite no one")
+	var text = ""
+	if message.Private() {
+		if message.Recipient() == nil {
+			log.Println("can't send private message to no one")
 			return nil
 		}
-		packet = struct {
-			invitePacket
-			Command clientCommand `json:"cmd"`
-		}{
-			invitePacket: invitePacket{Nick: message.Recipient},
-			Command:      clientInvite,
-		}
-	default:
-		return nil
+		text = fmt.Sprintf("%swhisper ", h.config.Trigger)
+	}
+	if message.Recipient() != nil {
+		text += fmt.Sprintf("@%s", message.Recipient().Nick())
+	}
+	packet = struct {
+		chatPacket
+		Command clientCommand `json:"cmd"`
+	}{
+		chatPacket: chatPacket{Text: fmt.Sprintf("%s %s", text, message.Message())},
+		Command:    clientChat,
 	}
 	return h.conn.WriteJSON(packet)
 }
