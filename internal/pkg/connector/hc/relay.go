@@ -138,13 +138,17 @@ func (h *hCRelay) connect(nick string) error {
 			h.currentUser = onlineUser
 		}
 	}
+	err = h.conn.SetReadDeadline(time.Time{})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func (h *hCRelay) readServerMessage(producer *queue.Producer) error {
 	var response mapPacket
 	if err := h.conn.ReadJSON(&response); err != nil {
-		return err
+		return fmt.Errorf("failed to read message: %v", err)
 	}
 	return producer.Produce(response)
 }
