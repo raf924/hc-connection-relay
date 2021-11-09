@@ -9,7 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/raf924/bot/pkg/domain"
 	"github.com/raf924/bot/pkg/queue"
-	"github.com/raf924/bot/pkg/relay/connection"
+	"github.com/raf924/bot/pkg/rpc"
 	"gopkg.in/yaml.v2"
 	"log"
 	"net/http"
@@ -19,11 +19,11 @@ import (
 	"time"
 )
 
-var _ connection.Relay = (*hCRelay)(nil)
+var _ rpc.ConnectionRelay = (*hCRelay)(nil)
 
 var mentionRegex = regexp.MustCompile("@+(\\w+)")
 
-func NewHCRelay(config interface{}) *hCRelay {
+func NewHCRelay(config interface{}) rpc.ConnectionRelay {
 	data, err := yaml.Marshal(config)
 	if err != nil {
 		panic(err)
