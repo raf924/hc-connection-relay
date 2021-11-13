@@ -1,8 +1,8 @@
 package hc
 
 import (
-	"github.com/google/uuid"
 	"github.com/raf924/bot/pkg/domain"
+	"github.com/segmentio/ksuid"
 	"os"
 	"testing"
 )
@@ -41,7 +41,7 @@ func roundTrip(tb testing.TB, hcR *hCRelay, text string) *domain.ChatMessage {
 
 func TestHCRelayRoundTrip(t *testing.T) {
 	hcR := setupHCRelay(t)
-	text := uuid.NewString()
+	text := ksuid.New().String()
 	m := roundTrip(t, hcR, text)
 	if m.Message() != text {
 		t.Errorf("expected %v got %v", text, m.Message())
