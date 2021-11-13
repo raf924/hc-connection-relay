@@ -150,7 +150,7 @@ func (u *user) toOnlineUser(joinTime time.Time) *domain.User {
 	default:
 		role = domain.RegularUser
 	}
-	return domain.NewOnlineUser(u.Nick, u.Trip, role, &joinTime)
+	return domain.NewOnlineUser(u.Nick, u.Trip, role, joinTime)
 }
 
 type joinedPacket struct {

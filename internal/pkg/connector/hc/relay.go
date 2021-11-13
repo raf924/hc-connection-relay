@@ -59,8 +59,8 @@ type hCRelay struct {
 	users          domain.UserList
 	onUserJoin     func(user *domain.User, timestamp time.Time)
 	onUserLeft     func(user *domain.User, timestamp time.Time)
-	serverProducer *queue.Producer
-	serverConsumer *queue.Consumer
+	serverProducer queue.Producer
+	serverConsumer queue.Consumer
 }
 
 func (h *hCRelay) Recv() (*domain.ChatMessage, error) {
@@ -145,7 +145,7 @@ func (h *hCRelay) connect(nick string) error {
 	return nil
 }
 
-func (h *hCRelay) readServerMessage(producer *queue.Producer) error {
+func (h *hCRelay) readServerMessage(producer queue.Producer) error {
 	var response mapPacket
 	if err := h.conn.ReadJSON(&response); err != nil {
 		return fmt.Errorf("failed to read message: %v", err)
@@ -153,7 +153,7 @@ func (h *hCRelay) readServerMessage(producer *queue.Producer) error {
 	return producer.Produce(response)
 }
 
-func (h *hCRelay) readServerMessages(producer *queue.Producer) error {
+func (h *hCRelay) readServerMessages(producer queue.Producer) error {
 	for {
 		err := h.readServerMessage(producer)
 		if err != nil {
@@ -162,7 +162,7 @@ func (h *hCRelay) readServerMessages(producer *queue.Producer) error {
 	}
 }
 
-func (h *hCRelay) relayServerMessage(consumer *queue.Consumer) error {
+func (h *hCRelay) relayServerMessage(consumer queue.Consumer) error {
 	var serverResponse interface{}
 	serverResponse, err := consumer.Consume()
 	if err != nil {
@@ -230,7 +230,7 @@ func (h *hCRelay) relayServerMessage(consumer *queue.Consumer) error {
 	return nil
 }
 
-func (h *hCRelay) relayServerMessages(consumer *queue.Consumer) error {
+func (h *hCRelay) relayServerMessages(consumer queue.Consumer) error {
 	for {
 		err := h.relayServerMessage(consumer)
 		if err != nil {
