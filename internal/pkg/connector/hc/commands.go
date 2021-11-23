@@ -1,7 +1,7 @@
 package hc
 
 import (
-	"github.com/raf924/bot/pkg/domain"
+	"github.com/raf924/connector-sdk/domain"
 	"time"
 )
 

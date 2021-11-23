@@ -1,7 +1,7 @@
 package hc_connection_relay
 
 import (
-	"github.com/raf924/bot/pkg/rpc"
+	"github.com/raf924/connector-sdk/rpc"
 	"github.com/raf924/hc-connection-relay/internal/pkg/connector/hc"
 )
 

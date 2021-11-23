@@ -1,7 +1,7 @@
 github.com/gorilla/websocket v1.4.2 h1:+/TMaTYc4QFitKJxsQ7Yye35DkWvkdLcvGKqM+x0Ufc=
 github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
-github.com/raf924/bot v1.0.4 h1:c0x2E5AFe+5YfsZmslKjyOhNyxjBCv/RerzPDdbO6/k=
-github.com/raf924/bot v1.0.4/go.mod h1:ooJyQ5HEjhFY59c2CCkZRgIlwFRmyBpFc2J5ZDb50AY=
+github.com/raf924/connector-sdk v1.0.1 h1:s6FY6Pf0BnMRkOXeGgW3ppXoLoK8jG/Mhn64lcGZSA4=
+github.com/raf924/connector-sdk v1.0.1/go.mod h1:Nfo+rxQfUxMk890n2yWZTRrNP4jdq1hBTkq0Vqsr+x8=
 github.com/segmentio/ksuid v1.0.4 h1:sBo2BdShXjmcugAMwjugoGUdUV0pcxY5mW4xKRn3v4c=
 github.com/segmentio/ksuid v1.0.4/go.mod h1:/XUiZBD3kVx5SmUOl55voK5yeAbBNNIed+2O73XgrPE=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:yhCVgyC4o1eVCa2tZl7eS0r+SDo693bJlVdllGtEeKM=

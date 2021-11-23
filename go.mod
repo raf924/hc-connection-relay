@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/gorilla/websocket v1.4.2
-	github.com/raf924/bot v1.0.4
+	github.com/raf924/connector-sdk v1.0.1
 	gopkg.in/yaml.v2 v2.4.0
 )
 
