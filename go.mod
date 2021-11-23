@@ -1,4 +1,4 @@
-module github.com/raf924/hc-connection-relay
+module github.com/raf924/hc-connection-relay/v2
 
 go 1.17
 

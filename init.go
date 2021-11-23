@@ -2,7 +2,7 @@ package hc_connection_relay
 
 import (
 	"github.com/raf924/connector-sdk/rpc"
-	"github.com/raf924/hc-connection-relay/internal/pkg/connector/hc"
+	"github.com/raf924/hc-connection-relay/v2/internal/pkg/connector/hc"
 )
 
 func init() {
