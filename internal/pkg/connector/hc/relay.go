@@ -121,10 +121,10 @@ func (h *hCRelay) connect(nick string) error {
 		h.delay = defaultDelay
 	}
 	err = h.waitForConnection()
-	log.Println("Connected")
 	if err != nil {
 		return err
 	}
+	log.Println("Connected")
 	h.retries = 0
 	response, err := h.waitForJoinConfirmation()
 	if err != nil {
@@ -365,7 +365,7 @@ func (h *hCRelay) waitForJoinConfirmation() (*joinedPacket, error) {
 		}
 		log.Println("couldn't connect")
 		if h.config.Retries.Force {
-			var b []byte
+			b := make([]byte, 5)
 			_, _ = rand.Read(b)
 			h.nick = fmt.Sprintf("%s_%s", origNick, base64.StdEncoding.EncodeToString(b)[:5])
 		}
