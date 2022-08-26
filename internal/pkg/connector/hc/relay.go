@@ -377,15 +377,19 @@ func (h *hCRelay) waitForJoinConfirmation() (*joinedPacket, error) {
 func (h *hCRelay) sendToServer(message *domain.ClientMessage) error {
 	var packet interface{}
 	var text = ""
-	if message.Private() {
-		if message.Recipient() == nil {
-			log.Println("can't send private message to no one")
-			return nil
+	if message.Emote() {
+		text = "/me"
+	} else {
+		if message.Private() {
+			if message.Recipient() == nil {
+				log.Println("can't send private message to no one")
+				return nil
+			}
+			text = fmt.Sprintf("%swhisper ", h.config.Trigger)
 		}
-		text = fmt.Sprintf("%swhisper ", h.config.Trigger)
-	}
-	if message.Recipient() != nil {
-		text += fmt.Sprintf("@%s", message.Recipient().Nick())
+		if message.Recipient() != nil {
+			text += fmt.Sprintf("@%s", message.Recipient().Nick())
+		}
 	}
 	packet = struct {
 		chatPacket
