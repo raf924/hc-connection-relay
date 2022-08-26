@@ -1,9 +1,5 @@
-github.com/gorilla/websocket v1.4.2 h1:+/TMaTYc4QFitKJxsQ7Yye35DkWvkdLcvGKqM+x0Ufc=
-github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
-github.com/raf924/connector-sdk v1.0.1 h1:s6FY6Pf0BnMRkOXeGgW3ppXoLoK8jG/Mhn64lcGZSA4=
-github.com/raf924/connector-sdk v1.0.1/go.mod h1:Nfo+rxQfUxMk890n2yWZTRrNP4jdq1hBTkq0Vqsr+x8=
-github.com/raf924/connector-sdk v1.1.0 h1:Plrf39gVEAZ7W3HDhM0Jog9aa1pp+sonHVWGjBjs+Dk=
-github.com/raf924/connector-sdk v1.1.0/go.mod h1:Nfo+rxQfUxMk890n2yWZTRrNP4jdq1hBTkq0Vqsr+x8=
+github.com/gorilla/websocket v1.5.0 h1:PPwGk2jz7EePpoHN/+ClbZu8SPxiqlu12wZP/3sWmnc=
+github.com/gorilla/websocket v1.5.0/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/raf924/connector-sdk v1.1.1 h1:kvDJnKQyahdvKv80Jzm+HBXiGRFnrYG6UATbkm6/IvQ=
 github.com/raf924/connector-sdk v1.1.1/go.mod h1:Nfo+rxQfUxMk890n2yWZTRrNP4jdq1hBTkq0Vqsr+x8=
 github.com/segmentio/ksuid v1.0.4 h1:sBo2BdShXjmcugAMwjugoGUdUV0pcxY5mW4xKRn3v4c=
