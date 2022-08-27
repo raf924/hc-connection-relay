@@ -204,6 +204,19 @@ func (h *hCRelay) relayServerMessage(consumer queue.Consumer) error {
 				return err
 			}
 		}
+	case emote:
+		//TODO: expose a separate emote API
+		cp := chatServerPacket{}
+		_ = convertTo(response, &cp)
+		user := h.users.Find(cp.Nick)
+		if user == nil {
+			break
+		}
+		h.CommandTrigger()
+		err := h.sendToConnector(domain.NewChatMessage(cp.Text, h.currentUser, []*domain.User{user}, false, true, time.UnixMilli(cp.Timestamp), !user.Is(h.currentUser)))
+		if err != nil {
+			return err
+		}
 	case chat:
 		cp := chatServerPacket{}
 		_ = convertTo(response, &cp)
