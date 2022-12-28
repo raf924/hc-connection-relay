@@ -365,7 +365,7 @@ func (h *hCRelay) waitForJoinConfirmation() (*joinedPacket, error) {
 	for h.canRetry() {
 		err := h.joinTry()
 		if err != nil {
-			log.Println("couldn't join")
+			log.Println("couldn't join", err.Error())
 			time.Sleep(h.delay)
 			continue
 		}
@@ -376,7 +376,8 @@ func (h *hCRelay) waitForJoinConfirmation() (*joinedPacket, error) {
 		if response.GetCommand() == string(join) {
 			return &response, nil
 		}
-		log.Println("couldn't connect")
+		responseJSON, _ := json.Marshal(response)
+		log.Println("couldn't join", string(responseJSON))
 		if h.config.Retries.Force {
 			b := make([]byte, 5)
 			_, _ = rand.Read(b)
